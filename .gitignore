@@ -1,0 +1,16 @@
+# Server Dependencies
+node_modules/
+
+# TypeScript Compiled Output
+dist/
+
+# Server Environment Files
+.env
+
+# Application Logs
+logs/
+*.log
+
+# Vitest Coverage Output
+coverage/
+.vitest/

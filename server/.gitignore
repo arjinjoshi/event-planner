@@ -1,0 +1,23 @@
+# Dependency directories
+node_modules/
+
+# Compiled TypeScript build output
+dist/
+
+# Environment files & secrets (DO NOT COMMIT)
+.env
+.env.local
+.env.*.local
+
+# Logs and runtime data
+logs/
+*.log
+
+# Testing & Coverage outputs
+coverage/
+.vitest/
+
+# OS and Editor metadata
+.DS_Store
+.vscode/
+.idea/

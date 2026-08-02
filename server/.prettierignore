@@ -1,0 +1,17 @@
+# Ignore generated builds and installed modules
+node_modules/
+dist/
+
+# Ignore log outputs
+logs/
+*.log
+
+# Ignore package lock files to prevent formatting diffs
+package-lock.json
+
+# Ignore test coverage reports
+coverage/
+
+# Ignore environment files
+.env
+.env.*
