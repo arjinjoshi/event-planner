@@ -13,9 +13,9 @@ const BaseEventObject = z.object({
     message: "Invalid start time date format (ISO 8601 required)",
   }),
 
-  end_time: z
-    .iso
-    .datetime({ message: "Invalid end time date format (ISO 8601 required)" }),
+  end_time: z.iso.datetime({
+    message: "Invalid end time date format (ISO 8601 required)",
+  }),
 
   location: z.string().min(2, "Location is required"),
 

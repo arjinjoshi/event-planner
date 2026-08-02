@@ -12,10 +12,7 @@ export const requireEmailVerified = (
   next: NextFunction
 ): void => {
   if (!req.user) {
-    throw new AppError(
-      "Authentication required",
-      httpCodes.UNAUTHORIZED.statusCode
-    );
+    throw new AppError("Authentication required", httpCodes.UNAUTHORIZED.statusCode);
   }
 
   if (!req.user.is_email_verified) {

@@ -1,11 +1,11 @@
 import express, { Application, Request, Response, NextFunction } from "express";
 import cors from "cors";
-import swaggerUi from 'swagger-ui-express';
+import swaggerUi from "swagger-ui-express";
 import routes from "./routes/index";
 import { AppError } from "./utils/customError";
 import httpCodes from "./constants/httpCodes";
 import { errorHandler } from "./middleware/errorHandler.middleware";
-import { swaggerSpec } from './configurations/swagger';
+import { swaggerSpec } from "./configurations/swagger";
 import { apiLimiter } from "./middleware/rateLimiter.middleware";
 import { morganMiddleware } from "./middleware/morgan.middleware";
 
@@ -26,7 +26,7 @@ app.use(morganMiddleware);
 app.use("/api", apiLimiter);
 
 // API Documentation Endpoint
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Mount Central API Routes
 app.use("/api/v1", routes);

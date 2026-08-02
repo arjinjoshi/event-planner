@@ -22,7 +22,7 @@ export interface Event {
   capacity?: number | null;
   is_private: boolean;
   creator_id: string;
-  media?: EventMedia[]; 
+  media?: EventMedia[];
   created_at: Date | string;
   updated_at?: Date | string;
 }
