@@ -6,9 +6,9 @@ import { validateRequest } from "../middleware/validateRequest.middleware";
 import { upload } from "../middleware/multerUpload.middleware";
 import {
   CreateEventSchema,
-  UpdateEventSchema,
   FilterEventSchema,
   EventIdParamSchema,
+  UpdateEventSchema,
 } from "../schemas/event.schema";
 import { isOwner } from "../middleware/authorization.middleware";
 
@@ -122,7 +122,7 @@ router.post(
  * @openapi
  * /events/{id}:
  *   put:
- *     summary: Update event (Creator only)
+ *     summary: Replace event (Creator only - full replacement)
  *     tags: [Events]
  *     security:
  *       - bearerAuth: []
@@ -137,14 +137,14 @@ router.post(
  *         multipart/form-data:
  *           schema:
  *             type: object
- *             required: [title, description, location, start_time, end_time]
+ *             required: [title, description, location, start_time, end_time, capacity, is_private]
  *             properties:
  *               title: { type: string }
  *               description: { type: string }
  *               location: { type: string }
  *               start_time: { type: string, format: date-time }
  *               end_time: { type: string, format: date-time }
- *               capacity: { type: integer }
+ *               capacity: { type: integer, minimum: 1 }
  *               is_private: { type: boolean }
  *               tags: { type: array, items: { type: string } }
  *               media:
@@ -152,13 +152,15 @@ router.post(
  *                 items: { type: string, format: binary }
  *     responses:
  *       200:
- *         description: Event updated
+ *         description: Event replaced successfully
+ *       400:
+ *         description: Bad request (Missing required fields)
  *       401:
- *         description: Unauthorized (Token missing or invalid)
+ *         description: Unauthorized
  *       403:
  *         description: Forbidden (Not event creator OR email not verified)
  */
-router.put(
+ router.put(
   "/:id",
   authenticate,
   requireEmailVerified,

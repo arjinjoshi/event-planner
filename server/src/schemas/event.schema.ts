@@ -58,7 +58,7 @@ const BaseEventObject = z.object({
         }
       }
       return val;
-    }, z.array(z.string().uuid()))
+    }, z.array(z.uuid()))
     .optional(),
 });
 
@@ -76,14 +76,52 @@ export const CreateEventSchema = BaseEventObject.extend({
 /**
  * Update Event Schema (PUT)
  */
-// For PUT requests: both start_time and end_time are guaranteed to exist
-export const UpdateEventSchema = BaseEventObject.refine(
-  (data) => new Date(data.end_time) > new Date(data.start_time),
-  {
-    message: "End time must be strictly after start time",
-    path: ["end_time"],
-  }
-);
+ export const UpdateEventSchema = z
+   .object({
+     title: z.string().min(3, "Title must be at least 3 characters"),
+     description: z.string().min(10, "Description must be at least 10 characters"),
+     start_time: z.iso.datetime({
+       message: "Invalid start time date format (ISO 8601 required)",
+     }),
+     end_time: z.iso.datetime({
+       message: "Invalid end time date format (ISO 8601 required)",
+     }),
+     location: z.string().min(2, "Location is required"),
+ 
+     // Capacity cannot be null or omitted in a strict PUT
+     capacity: z.coerce
+       .number()
+       .int("Capacity must be an integer")
+       .positive("Capacity must be greater than 0"),
+ 
+     // is_private cannot be null or omitted
+     is_private: z.preprocess((val) => {
+       if (val === "true" || val === true) return true;
+       if (val === "false" || val === false) return false;
+       return val;
+     }, z.boolean()),
+ 
+     // In a strict PUT, tags are provided as the complete new array.
+     // If not sent, it defaults to [] (removing all tags).
+     tags: z
+       .preprocess((val) => {
+         if (typeof val === "string") {
+           try {
+             return JSON.parse(val);
+           } catch {
+             return val;
+           }
+         }
+         return val;
+       }, z.array(z.string().min(1)))
+       .default([]),
+   })
+   .refine((data) => new Date(data.end_time) > new Date(data.start_time), {
+     message: "End time must be strictly after start time",
+     path: ["end_time"],
+   });
+ 
+ export type UpdateEventDTO = z.infer<typeof UpdateEventSchema>;
 
 /**
  * Query Filter Schema
@@ -110,6 +148,5 @@ export const EventIdParamSchema = z.object({
 
 // Inferred DTO Types
 export type CreateEventDTO = z.infer<typeof CreateEventSchema>;
-export type UpdateEventDTO = z.infer<typeof UpdateEventSchema>;
 export type FilterEventDTO = z.infer<typeof FilterEventSchema>;
 export type EventIdParamDTO = z.infer<typeof EventIdParamSchema>;

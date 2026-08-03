@@ -1,5 +1,5 @@
 import { db } from "../configurations/db";
-import { CreateEventDTO, UpdateEventDTO, FilterEventDTO } from "../schemas/event.schema";
+import { CreateEventDTO,  FilterEventDTO, UpdateEventDTO } from "../schemas/event.schema";
 import { AppError } from "../utils/customError";
 import httpCodes from "../constants/httpCodes";
 import { uploadMedia, deleteMedia } from "./cloudinary.service"; // <--- Import deleteMedia
@@ -246,115 +246,100 @@ export const eventService = {
     };
   },
 
-  /**
-   * Update existing event details and handle media (PUT)
-   */
-  updateEvent: async (
-    eventId: string,
-    data: UpdateEventDTO,
-    files?: Express.Multer.File[]
-  ) => {
-    const { tags, deleted_media_ids, ...eventData } = data as UpdateEventDTO & {
-      deleted_media_ids?: string[];
-    };
+/**
+ * Strict PUT: Complete replacement of event details, tags, and media
+ */
+ updateEvent: async (
+  eventId: string,
+  data: UpdateEventDTO,
+  files?: Express.Multer.File[]
+) => {
+  const { tags, ...eventData } = data;
 
-    return await db.transaction(async (trx) => {
-      // Replace event details in database
-      const [updatedEvent] = await trx("events")
-        .where({ id: eventId })
-        .update({
-          ...eventData,
-          updated_at: db.fn.now(),
-        })
-        .returning("*");
+  return await db.transaction(async (trx) => {
+    // 1. Fully update the event record with all required non-null fields
+    const [updatedEvent] = await trx("events")
+      .where({ id: eventId })
+      .update({
+        title: eventData.title,
+        description: eventData.description,
+        start_time: eventData.start_time,
+        end_time: eventData.end_time,
+        location: eventData.location,
+        capacity: eventData.capacity,
+        is_private: eventData.is_private,
+        updated_at: db.fn.now(),
+      })
+      .returning("*");
 
-      if (!updatedEvent) {
-        throw new AppError("Event not found", httpCodes.NOT_FOUND.statusCode);
-      }
+    if (!updatedEvent) {
+      throw new AppError("Event not found", httpCodes.NOT_FOUND.statusCode);
+    }
 
-      // Handle specific media removals requested by user
-      if (
-        deleted_media_ids &&
-        Array.isArray(deleted_media_ids) &&
-        deleted_media_ids.length > 0
-      ) {
-        const mediaToDelete = await trx("event_media")
-          .whereIn("id", deleted_media_ids)
-          .andWhere({ event_id: eventId });
+    // 2. Complete Tag Replacement: Delete ALL existing tags & re-insert
+    await trx("event_tags").where({ event_id: eventId }).delete();
 
-        for (const item of mediaToDelete) {
-          if (item.public_id) {
-            await deleteMedia(item.public_id, item.type === "VIDEO" ? "video" : "image");
-          }
+    if (tags && tags.length > 0) {
+      for (const tagName of tags) {
+        const normalizedTag = tagName.trim().toLowerCase();
+        if (!normalizedTag) continue;
+
+        let tagRecord = await trx("tags").where({ name: normalizedTag }).first();
+        if (!tagRecord) {
+          [tagRecord] = await trx("tags")
+            .insert({ name: normalizedTag })
+            .returning("*");
         }
 
-        await trx("event_media")
-          .whereIn("id", deleted_media_ids)
-          .andWhere({ event_id: eventId })
-          .delete();
+        await trx("event_tags").insert({
+          event_id: eventId,
+          tag_id: tagRecord.id,
+        });
       }
+    }
 
-      // Re-sync tags (Clear old tags and map new tags list)
-      if (tags && Array.isArray(tags)) {
-        await trx("event_tags").where({ event_id: eventId }).delete();
+    // 3. Complete Media Replacement: Delete ALL old media from Cloudinary and DB
+    const oldMedia = await trx("event_media").where({ event_id: eventId });
 
-        for (const tagName of tags) {
-          const normalizedTag = tagName.trim().toLowerCase();
-          if (!normalizedTag) continue;
+    for (const item of oldMedia) {
+      if (item.public_id) {
+        await deleteMedia(item.public_id, item.type === "VIDEO" ? "video" : "image");
+      }
+    }
+    await trx("event_media").where({ event_id: eventId }).delete();
 
-          let tagRecord = await trx("tags").where({ name: normalizedTag }).first();
-          if (!tagRecord) {
-            [tagRecord] = await trx("tags")
-              .insert({ name: normalizedTag })
-              .returning("*");
-          }
+    // Insert newly uploaded media files (if provided) starting from sort_order 0
+    if (files && files.length > 0) {
+      const mediaRecords = await Promise.all(
+        files.map(async (file, index) => {
+          const uploadResult = await uploadMedia(file, "events");
+          const resourceType =
+            uploadResult.resource_type === "video" ? "VIDEO" : "IMAGE";
 
-          await trx("event_tags").insert({
+          return {
             event_id: eventId,
-            tag_id: tagRecord.id,
-          });
-        }
-      }
+            url: uploadResult.secure_url,
+            public_id: uploadResult.public_id,
+            type: resourceType,
+            sort_order: index,
+          };
+        })
+      );
 
-      // Append newly uploaded media items concurrently
-      if (files && files.length > 0) {
-        const maxSortResult = await trx("event_media")
-          .where({ event_id: eventId })
-          .max("sort_order as maxOrder")
-          .first();
+      await trx("event_media").insert(mediaRecords);
+    }
 
-        const startOrder = (maxSortResult?.maxOrder ?? -1) + 1;
+    // Fetch refreshed media
+    const media = await trx("event_media")
+      .where({ event_id: eventId })
+      .orderBy("sort_order", "asc");
 
-        const mediaRecords = await Promise.all(
-          files.map(async (file, index) => {
-            const uploadResult = await uploadMedia(file, "events");
-            const resourceType =
-              uploadResult.resource_type === "video" ? "VIDEO" : "IMAGE";
-
-            return {
-              event_id: eventId,
-              url: uploadResult.secure_url,
-              public_id: uploadResult.public_id,
-              type: resourceType,
-              sort_order: startOrder + index,
-            };
-          })
-        );
-
-        await trx("event_media").insert(mediaRecords);
-      }
-
-      // Retrieve updated event with sorted media for response
-      const media = await trx("event_media")
-        .where({ event_id: eventId })
-        .orderBy("sort_order", "asc");
-
-      return {
-        ...updatedEvent,
-        media,
-      };
-    });
-  },
+    return {
+      ...updatedEvent,
+      media,
+    };
+  });
+},
 
   /**
    * Delete an event and clean up associated Cloudinary assets

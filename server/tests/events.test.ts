@@ -105,25 +105,53 @@ describe("Event Routes", () => {
     });
   });
 
-  describe(`PUT ${API_PREFIX}/events/:id (Ownership Guard)`, () => {
+  describe(`PUT ${API_PREFIX}/events/:id (Ownership Guard & Strict PUT)`, () => {
     it("should block non-owner (User B) from updating Event created by User A with 403", async () => {
       expect(createdEventId).toBeDefined();
+
+      const startTime = new Date(Date.now() + 86400000).toISOString();
+      const endTime = new Date(Date.now() + 172800000).toISOString();
 
       const res = await request(app)
         .put(`${API_PREFIX}/events/${createdEventId}`)
         .set("Authorization", `Bearer ${userBToken}`)
         .send({
           title: "Hacked Title Attempt",
-          start_time: new Date(Date.now() + 86400000).toISOString(),
-          end_time: new Date(Date.now() + 172800000).toISOString(),
-          description: "Attempting illegal edit.",
+          description: "Attempting unauthorized edit on another user's event.",
           location: "Unknown Location",
+          start_time: startTime,
+          end_time: endTime,
+          capacity: 50,
+          is_private: false,
+          tags: ["hacked"],
         });
 
       expect(res.status).toBe(403);
     });
 
-    it("should allow owner (User A) to update Event", async () => {
+    it("should fail with 400 when missing mandatory fields for strict PUT replacement", async () => {
+      expect(createdEventId).toBeDefined();
+
+      const startTime = new Date(Date.now() + 86400000).toISOString();
+      const endTime = new Date(Date.now() + 172800000).toISOString();
+
+      // Missing capacity and is_private
+      const res = await request(app)
+        .put(`${API_PREFIX}/events/${createdEventId}`)
+        .set("Authorization", `Bearer ${userAToken}`)
+        .send({
+          title: "Incomplete Payload Event",
+          description: "Missing required capacity and is_private fields.",
+          location: "Virtual",
+          start_time: startTime,
+          end_time: endTime,
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
+
+    it("should allow owner (User A) to perform full replacement of Event details and tags", async () => {
       expect(createdEventId).toBeDefined();
 
       const startTime = new Date(Date.now() + 86400000).toISOString();
@@ -140,6 +168,7 @@ describe("Event Routes", () => {
           end_time: endTime,
           capacity: 15,
           is_private: false,
+          tags: ["architecture", "scaling"],
         });
 
       expect(res.status).toBe(200);
@@ -148,6 +177,7 @@ describe("Event Routes", () => {
       const updatedData = res.body.data.event || res.body.data;
       expect(updatedData.id).toBe(createdEventId);
       expect(updatedData.title).toBe("Tech Developers Summit 2026 - Extended Edition");
+      expect(updatedData.capacity).toBe(15);
     });
   });
 });
