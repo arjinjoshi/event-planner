@@ -1,30 +1,23 @@
 import { z } from "zod";
 
 /**
- * Base Event Schema - Defensively defined without .nullable()
- * Any explicit null sent for these fields will trigger an immediate Zod validation error.
+ * Base Event Schema
  */
 const BaseEventObject = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
-
   description: z.string().min(10, "Description must be at least 10 characters"),
-
   start_time: z.iso.datetime({
     message: "Invalid start time date format (ISO 8601 required)",
   }),
-
   end_time: z.iso.datetime({
     message: "Invalid end time date format (ISO 8601 required)",
   }),
-
   location: z.string().min(2, "Location is required"),
-
   capacity: z.coerce
     .number()
     .int("Capacity must be an integer")
     .positive("Capacity must be greater than 0")
     .optional(),
-
   is_private: z
     .preprocess((val) => {
       if (val === "true" || val === true) return true;
@@ -47,7 +40,6 @@ const BaseEventObject = z.object({
       z.array(z.string().min(1))
     )
     .optional(),
-
   deleted_media_ids: z
     .preprocess((val) => {
       if (typeof val === "string") {
@@ -58,14 +50,10 @@ const BaseEventObject = z.object({
         }
       }
       return val;
-    }, z.array(z.uuid()))
+    }, z.array(z.string()))
     .optional(),
 });
 
-/**
- * Create Event Schema
- * Requires all non-optional base fields and sets is_private default to false
- */
 export const CreateEventSchema = BaseEventObject.extend({
   is_private: BaseEventObject.shape.is_private.default(false),
 }).refine((data) => new Date(data.end_time) > new Date(data.start_time), {
@@ -73,66 +61,59 @@ export const CreateEventSchema = BaseEventObject.extend({
   path: ["end_time"],
 });
 
-/**
- * Update Event Schema (PUT)
- */
- export const UpdateEventSchema = z
-   .object({
-     title: z.string().min(3, "Title must be at least 3 characters"),
-     description: z.string().min(10, "Description must be at least 10 characters"),
-     start_time: z.iso.datetime({
-       message: "Invalid start time date format (ISO 8601 required)",
-     }),
-     end_time: z.iso.datetime({
-       message: "Invalid end time date format (ISO 8601 required)",
-     }),
-     location: z.string().min(2, "Location is required"),
- 
-     // Capacity cannot be null or omitted in a strict PUT
-     capacity: z.coerce
-       .number()
-       .int("Capacity must be an integer")
-       .positive("Capacity must be greater than 0"),
- 
-     // is_private cannot be null or omitted
-     is_private: z.preprocess((val) => {
-       if (val === "true" || val === true) return true;
-       if (val === "false" || val === false) return false;
-       return val;
-     }, z.boolean()),
- 
-     // In a strict PUT, tags are provided as the complete new array.
-     // If not sent, it defaults to [] (removing all tags).
-     tags: z
-       .preprocess((val) => {
-         if (typeof val === "string") {
-           try {
-             return JSON.parse(val);
-           } catch {
-             return val;
-           }
-         }
-         return val;
-       }, z.array(z.string().min(1)))
-       .default([]),
-   })
-   .refine((data) => new Date(data.end_time) > new Date(data.start_time), {
-     message: "End time must be strictly after start time",
-     path: ["end_time"],
-   });
- 
- export type UpdateEventDTO = z.infer<typeof UpdateEventSchema>;
+export const UpdateEventSchema = z
+  .object({
+    title: z.string().min(3, "Title must be at least 3 characters"),
+    description: z.string().min(10, "Description must be at least 10 characters"),
+    start_time: z.iso.datetime({
+      message: "Invalid start time date format (ISO 8601 required)",
+    }),
+    end_time: z.iso.datetime({
+      message: "Invalid end time date format (ISO 8601 required)",
+    }),
+    location: z.string().min(2, "Location is required"),
+    capacity: z.coerce
+      .number()
+      .int("Capacity must be an integer")
+      .positive("Capacity must be greater than 0"),
+    is_private: z.preprocess((val) => {
+      if (val === "true" || val === true) return true;
+      if (val === "false" || val === false) return false;
+      return val;
+    }, z.boolean()),
+    tags: z
+      .preprocess((val) => {
+        if (typeof val === "string") {
+          try {
+            return JSON.parse(val);
+          } catch {
+            return val;
+          }
+        }
+        return val;
+      }, z.array(z.string().min(1)))
+      .default([]),
+  })
+  .refine((data) => new Date(data.end_time) > new Date(data.start_time), {
+    message: "End time must be strictly after start time",
+    path: ["end_time"],
+  });
+
+export type UpdateEventDTO = z.infer<typeof UpdateEventSchema>;
 
 /**
- * Query Filter Schema
+ * Query Filter Schema - Updated is_private preprocessor
  */
 export const FilterEventSchema = z.object({
   search: z.string().optional(),
   location: z.string().optional(),
   tag: z.string().optional(),
   is_private: z
-    .string()
-    .transform((val) => val === "true")
+    .preprocess((val) => {
+      if (val === "true" || val === true) return true;
+      if (val === "false" || val === false) return false;
+      return undefined;
+    }, z.boolean().optional())
     .optional(),
   sort_by: z
     .enum(["start_time", "created_at", "capacity", "popularity"])
@@ -143,10 +124,9 @@ export const FilterEventSchema = z.object({
 });
 
 export const EventIdParamSchema = z.object({
-  id: z.uuid({ message: "Invalid Event ID format" }),
+  id: z.string({ message: "Invalid Event ID format" }),
 });
 
-// Inferred DTO Types
 export type CreateEventDTO = z.infer<typeof CreateEventSchema>;
 export type FilterEventDTO = z.infer<typeof FilterEventSchema>;
 export type EventIdParamDTO = z.infer<typeof EventIdParamSchema>;

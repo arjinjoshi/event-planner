@@ -13,6 +13,7 @@ import {
   RegisterDTO,
   LoginDTO,
   VerifyEmailDTO,
+  ResendVerificationEmailDTO,
   Verify2FAOtpDTO,
   AuthResponse,
   UserResponse,
@@ -57,7 +58,7 @@ export const authService = {
     if (file) {
       const uploadResult = await uploadMedia(file, "avatars");
       avatar_url = uploadResult.secure_url;
-      avatar_public_id = uploadResult.public_id; // Capture Cloudinary public_id
+      avatar_public_id = uploadResult.public_id;
     }
 
     const password_hash = await bcrypt.hash(password, NUMBER_OF_SALT_ROUNDS);
@@ -70,7 +71,7 @@ export const authService = {
           name,
           phone_number: phone_number || null,
           avatar_url,
-          avatar_public_id, // Store in DB
+          avatar_public_id,
           is_email_verified: false,
           is_two_factor_enabled: false,
         })
@@ -98,6 +99,75 @@ export const authService = {
         tokens: { accessToken, refreshToken },
       };
     });
+  },
+
+  /**
+   * Request / Resend Email Verification OTP Code
+   */
+  resendVerificationEmail: async ({ email }: ResendVerificationEmailDTO) => {
+    const user = await db("users").where({ email }).first();
+
+    // Prevent leaking user existence by returning success even if user doesn't exist
+    if (!user) {
+      return {
+        message: "If an account exists with this email, a verification code has been sent.",
+      };
+    }
+
+    if (user.is_email_verified) {
+      throw new AppError(
+        "Email address is already verified.",
+        httpCodes.BAD_REQUEST.statusCode
+      );
+    }
+
+    // Send a new 15-minute OTP token
+    await sendVerificationToken(user.id, user.email);
+
+    return {
+      message: "If an account exists with this email, a verification code has been sent.",
+    };
+  },
+
+  /**
+   * Verify Email 6-Digit OTP
+   */
+  verifyEmail: async ({ email, token }: VerifyEmailDTO) => {
+    const user = await db("users").where({ email }).first();
+    if (!user) {
+      throw new AppError("User not found", httpCodes.NOT_FOUND.statusCode);
+    }
+
+    if (user.is_email_verified) {
+      return { message: "Email is already verified" };
+    }
+
+    const verificationRecord = await db("email_verifications")
+      .where({ user_id: user.id })
+      .andWhere("expires_at", ">", new Date())
+      .orderBy("created_at", "desc")
+      .first();
+
+    if (!verificationRecord) {
+      throw new AppError(
+        "Invalid or expired verification OTP",
+        httpCodes.BAD_REQUEST.statusCode
+      );
+    }
+
+    const isMatch = await bcrypt.compare(token, verificationRecord.token);
+    if (!isMatch) {
+      throw new AppError(
+        "Invalid or expired verification OTP",
+        httpCodes.BAD_REQUEST.statusCode
+      );
+    }
+
+    // Update user status and purge all verification tokens for this user
+    await db("users").where({ id: user.id }).update({ is_email_verified: true });
+    await db("email_verifications").where({ user_id: user.id }).delete();
+
+    return { message: "Email verified successfully" };
   },
 
   /**
@@ -143,42 +213,6 @@ export const authService = {
       user: userResponse,
       tokens: { accessToken, refreshToken },
     };
-  },
-
-  /**
-   * Verify Email 6-Digit OTP
-   */
-  verifyEmail: async ({ email, token }: VerifyEmailDTO) => {
-    const user = await db("users").where({ email }).first();
-    if (!user) {
-      throw new AppError("User not found", httpCodes.NOT_FOUND.statusCode);
-    }
-
-    const verificationRecord = await db("email_verifications")
-      .where({ user_id: user.id })
-      .andWhere("expires_at", ">", new Date())
-      .orderBy("created_at", "desc")
-      .first();
-
-    if (!verificationRecord) {
-      throw new AppError(
-        "Invalid or expired verification OTP",
-        httpCodes.BAD_REQUEST.statusCode
-      );
-    }
-
-    const isMatch = await bcrypt.compare(token, verificationRecord.token);
-    if (!isMatch) {
-      throw new AppError(
-        "Invalid or expired verification OTP",
-        httpCodes.BAD_REQUEST.statusCode
-      );
-    }
-
-    await db("users").where({ id: user.id }).update({ is_email_verified: true });
-    await db("email_verifications").where({ user_id: user.id }).delete();
-
-    return { message: "Email verified successfully" };
   },
 
   /**

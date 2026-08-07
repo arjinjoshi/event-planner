@@ -10,6 +10,7 @@ describe("Event Routes", () => {
   let userAId: string;
   let userBId: string;
   let createdEventId: string;
+  let privateEventId: string;
 
   beforeAll(async () => {
     const phoneA = `+1${Math.floor(1000000000 + Math.random() * 9000000000)}`;
@@ -47,12 +48,13 @@ describe("Event Routes", () => {
 
   afterAll(async () => {
     if (createdEventId) await db("events").where({ id: createdEventId }).del();
+    if (privateEventId) await db("events").where({ id: privateEventId }).del();
     if (userAId) await db("users").where({ id: userAId }).del();
     if (userBId) await db("users").where({ id: userBId }).del();
   });
 
   describe(`POST ${API_PREFIX}/events`, () => {
-    it("should create a new event when authenticated and verified", async () => {
+    it("should create a public event when authenticated and verified", async () => {
       const startTime = new Date(Date.now() + 86400000).toISOString();
       const endTime = new Date(Date.now() + 172800000).toISOString();
 
@@ -77,17 +79,75 @@ describe("Event Routes", () => {
       createdEventId = eventData.id;
       expect(createdEventId).toBeDefined();
     });
+
+    it("should create a private event for User A", async () => {
+      const startTime = new Date(Date.now() + 86400000).toISOString();
+      const endTime = new Date(Date.now() + 172800000).toISOString();
+
+      const res = await request(app)
+        .post(`${API_PREFIX}/events`)
+        .set("Authorization", `Bearer ${userAToken}`)
+        .send({
+          title: "Secret VIP Party",
+          description: "Exclusive private gathering.",
+          location: "Private Residence",
+          start_time: startTime,
+          end_time: endTime,
+          capacity: 5,
+          is_private: true,
+          tags: ["vip", "private"],
+        });
+
+      expect([200, 201]).toContain(res.status);
+      expect(res.body.success).toBe(true);
+
+      const eventData = res.body.data.event || res.body.data;
+      privateEventId = eventData.id;
+      expect(privateEventId).toBeDefined();
+    });
   });
 
-  describe(`GET ${API_PREFIX}/events`, () => {
-    it("should list filtered & paginated events (Public)", async () => {
+  describe(`GET ${API_PREFIX}/events (Visibility & Optional Auth)`, () => {
+    it("should list public events for unauthenticated guest users (excluding private events)", async () => {
       const res = await request(app)
         .get(`${API_PREFIX}/events`)
-        .query({ page: 1, limit: 10 });
+        .query({ page: 1, limit: 20 });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(Array.isArray(res.body.data)).toBe(true);
+
+      const ids = res.body.data.map((e: any) => e.id);
+      expect(ids).toContain(createdEventId);
+      expect(ids).not.toContain(privateEventId); // Guest cannot see private event
+    });
+
+    it("should include private events when requested by the creator (User A)", async () => {
+      const res = await request(app)
+        .get(`${API_PREFIX}/events`)
+        .set("Authorization", `Bearer ${userAToken}`)
+        .query({ page: 1, limit: 20 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const ids = res.body.data.map((e: any) => e.id);
+      expect(ids).toContain(createdEventId);
+      expect(ids).toContain(privateEventId); // Creator CAN see their own private event
+    });
+
+    it("should NOT reveal User A's private event when fetched by another user (User B)", async () => {
+      const res = await request(app)
+        .get(`${API_PREFIX}/events`)
+        .set("Authorization", `Bearer ${userBToken}`)
+        .query({ page: 1, limit: 20 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const ids = res.body.data.map((e: any) => e.id);
+      expect(ids).toContain(createdEventId);
+      expect(ids).not.toContain(privateEventId); // Non-owner cannot see User A's private event
     });
   });
 

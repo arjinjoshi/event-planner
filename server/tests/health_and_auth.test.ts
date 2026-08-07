@@ -21,14 +21,18 @@ describe("Health Check & Auth Routes", () => {
 
   afterAll(async () => {
     if (testUserId) {
+      // Clean up child tables first to respect FK constraints
+      await db("email_verifications").where({ user_id: testUserId }).del();
+      await db("refresh_tokens").where({ user_id: testUserId }).del();
       await db("users").where({ id: testUserId }).del();
     }
+    await db.destroy(); // Close DB connection pool after tests
   });
 
   describe(`GET ${API_PREFIX}/health`, () => {
     it("should return 200 OK for health check", async () => {
       const res = await request(app).get(`${API_PREFIX}/health`);
-      
+
       expect(res.status).toBe(200);
       expect(res.body.status).toBe("OK");
     });
@@ -55,6 +59,39 @@ describe("Health Check & Auth Routes", () => {
         .send(testUser);
 
       expect([400, 409]).toContain(res.status);
+    });
+  });
+
+  describe(`POST ${API_PREFIX}/auth/resend-verification`, () => {
+    it("should successfully trigger a resend verification email request", async () => {
+      const res = await request(app)
+        .post(`${API_PREFIX}/auth/resend-verification`)
+        .send({ email: testUser.email });
+
+      expect(res.status).toBe(200);
+      expect(res.body.message).toBeDefined();
+    });
+
+    it("should return 200 generic message even if email does not exist (anti-enumeration)", async () => {
+      const res = await request(app)
+        .post(`${API_PREFIX}/auth/resend-verification`)
+        .send({ email: `nonexistent_${uniqueId}@example.com` });
+
+      expect(res.status).toBe(200);
+      expect(res.body.message).toContain("If an account exists");
+    });
+  });
+
+  describe(`POST ${API_PREFIX}/auth/verify-email`, () => {
+    it("should return 400 when an invalid OTP token is passed", async () => {
+      const res = await request(app)
+        .post(`${API_PREFIX}/auth/verify-email`)
+        .send({
+          email: testUser.email,
+          token: "000000",
+        });
+
+      expect(res.status).toBe(400);
     });
   });
 

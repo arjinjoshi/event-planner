@@ -1,5 +1,5 @@
 import express, { Application, Request, Response, NextFunction } from "express";
-import cors from "cors";
+import cors, { CorsOptions } from "cors";
 import swaggerUi from "swagger-ui-express";
 import routes from "./routes/index";
 import { AppError } from "./utils/customError";
@@ -8,14 +8,25 @@ import { errorHandler } from "./middleware/errorHandler.middleware";
 import { swaggerSpec } from "./configurations/swagger";
 import { apiLimiter } from "./middleware/rateLimiter.middleware";
 import { morganMiddleware } from "./middleware/morgan.middleware";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app: Application = express();
 
 // Enable reverse proxy support (required for Cloudflare, Nginx, Render, Heroku to extract real IPs)
 app.set("trust proxy", 1);
 
+const corsOptions: CorsOptions = {
+  origin: true,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  optionsSuccessStatus: 200,
+};
+
 // Core Middlewares
-app.use(cors());
+app.use(cors(corsOptions));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

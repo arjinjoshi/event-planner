@@ -9,13 +9,21 @@ const { TokenExpiredError, JsonWebTokenError } = jwt;
 
 export const errorHandler = (
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ) => {
+  // Fix: Ensure CORS headers are present on error responses
+  const origin = req.headers.origin;
+  const clientUrl = (process.env.CLIENT_URL || "http://localhost:5173").replace(/\/$/, "");
+
+  if (origin && (origin === clientUrl || origin === "http://localhost:5173")) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  }
+
   // Handle Known App Errors (Validation, Auth failures, Not Found)
   if (err instanceof AppError) {
-    // Log warnings for client/operational errors (4xx)
     logger.warn(`AppError [${err.status}]: ${err.message}`);
 
     return errorResponse(res, {
@@ -49,7 +57,6 @@ export const errorHandler = (
   }
 
   // Handle Unexpected System/Database Errors (500)
-  // Log critical 500 errors with full error stack trace to logs/error.log
   logger.error(`Unhandled System Error: ${err.message}`, { stack: err.stack });
 
   return errorResponse(res, {

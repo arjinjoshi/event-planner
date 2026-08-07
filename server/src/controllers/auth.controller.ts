@@ -7,6 +7,7 @@ import {
   RegisterDTO,
   LoginDTO,
   VerifyEmailDTO,
+  ResendVerificationEmailDTO,
   Verify2FAOtpDTO,
   RefreshTokenDTO,
   ChangePasswordDTO,
@@ -32,6 +33,25 @@ export const authController = {
         message:
           "Registration successful. Please check your email to verify your account.",
         data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Resend Verification Email OTP
+   */
+  resendVerificationEmail: async (
+    req: ValidatedRequest<ResendVerificationEmailDTO>,
+    res: Response,
+    next: NextFunction
+  ) => {
+    try {
+      const result = await authService.resendVerificationEmail(req.validated!.body!);
+      return successResponse(res, {
+        status: httpCodes.OK.statusCode,
+        message: result.message,
       });
     } catch (error) {
       next(error);

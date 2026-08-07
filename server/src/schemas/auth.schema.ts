@@ -22,6 +22,10 @@ export const VerifyEmailSchema = z.object({
   token: z.string().min(1, "Token is required"),
 });
 
+export const ResendVerificationEmailSchema = z.object({
+  email: z.email("Invalid email address"),
+});
+
 export const Verify2FAOtpSchema = z.object({
   userId: z.uuid("Invalid user ID"),
   code: z.string().length(6, "2FA code must be exactly 6 digits"),

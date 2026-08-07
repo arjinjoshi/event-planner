@@ -8,6 +8,7 @@ import {
   RegisterSchema,
   LoginSchema,
   VerifyEmailSchema,
+  ResendVerificationEmailSchema,
   Verify2FAOtpSchema,
   RefreshTokenSchema,
   ChangePasswordSchema,
@@ -51,9 +52,37 @@ router.post(
 
 /**
  * @openapi
+ * /auth/resend-verification:
+ *   post:
+ *     summary: Request/Resend email verification OTP code
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string, format: email }
+ *     responses:
+ *       200:
+ *         description: Verification OTP sent successfully
+ *       400:
+ *         description: Email is already verified
+ */
+router.post(
+  "/resend-verification",
+  authLimiter,
+  validateRequest(ResendVerificationEmailSchema),
+  authController.resendVerificationEmail
+);
+
+/**
+ * @openapi
  * /auth/verify-email:
  *   post:
- *     summary: Verify email address with token
+ *     summary: Verify email address with 6-digit OTP code
  *     tags: [Auth]
  *     requestBody:
  *       required: true

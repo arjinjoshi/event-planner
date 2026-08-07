@@ -3,6 +3,7 @@ import {
   RegisterSchema,
   LoginSchema,
   VerifyEmailSchema,
+  ResendVerificationEmailSchema,
   Verify2FAOtpSchema,
   RefreshTokenSchema,
   Toggle2FASchema,
@@ -13,6 +14,7 @@ import {
 export type RegisterDTO = z.infer<typeof RegisterSchema>;
 export type LoginDTO = z.infer<typeof LoginSchema>;
 export type VerifyEmailDTO = z.infer<typeof VerifyEmailSchema>;
+export type ResendVerificationEmailDTO = z.infer<typeof ResendVerificationEmailSchema>;
 export type Verify2FAOtpDTO = z.infer<typeof Verify2FAOtpSchema>;
 export type RefreshTokenDTO = z.infer<typeof RefreshTokenSchema>;
 export type Toggle2FADTO = z.infer<typeof Toggle2FASchema>;

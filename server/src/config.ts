@@ -25,7 +25,7 @@ requiredEnvs.forEach((eachEnv) => {
 });
 
 export const config = {
-  PORT: Number(process.env.PORT) || 5000,
+  PORT: Number(process.env.PORT) || 3000,
   NODE_ENV: process.env.NODE_ENV || "development",
   JWT_SECRET: process.env.JWT_SECRET!,
   REFRESH_TOKEN_SECRET: process.env.REFRESH_TOKEN_SECRET!,

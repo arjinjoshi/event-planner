@@ -11,6 +11,7 @@ import {
   UpdateEventSchema,
 } from "../schemas/event.schema";
 import { isOwner } from "../middleware/authorization.middleware";
+import { optionalAuthenticate } from "../middleware/optionalAuthenticate.middleware";
 
 const router = Router();
 
@@ -20,6 +21,9 @@ const router = Router();
  *   get:
  *     summary: List, filter, and paginate events
  *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []  # Authenticated users get public events + their own private events
+ *       - {}              # Guest users (no token) get public events only
  *     parameters:
  *       - in: query
  *         name: search
@@ -49,7 +53,12 @@ const router = Router();
  *       200:
  *         description: List of events
  */
-router.get("/", validateRequest(FilterEventSchema, "query"), eventController.getEvents);
+ router.get(
+  "/",
+  optionalAuthenticate,
+  validateRequest(FilterEventSchema, "query"),
+  eventController.getEvents
+);
 
 /**
  * @openapi

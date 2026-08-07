@@ -3,9 +3,49 @@ import { userController } from "../controllers/user.controller";
 import { authenticate } from "../middleware/auth.middleware";
 import { validateRequest } from "../middleware/validateRequest.middleware";
 import { upload } from "../middleware/multerUpload.middleware";
-import { UpdateProfileSchema, UserIdParamSchema } from "../schemas/user.schema";
+import {
+  UpdateProfileSchema,
+  UserIdParamSchema,
+  GetUsersQuerySchema,
+  GetUserEventsQuerySchema,
+} from "../schemas/user.schema";
 
 const router = Router();
+
+/**
+ * @openapi
+ * /users:
+ *   get:
+ *     summary: Get all users with search, pagination, and event counts
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by user name or email
+ *     responses:
+ *       200:
+ *         description: List of users with events count
+ */
+router.get(
+  "/",
+  authenticate,
+  validateRequest(GetUsersQuerySchema, "query"),
+  userController.getAllUsers
+);
 
 /**
  * @openapi
@@ -18,10 +58,6 @@ const router = Router();
  *     responses:
  *       200:
  *         description: User profile details
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/User'
  *       401:
  *         description: Unauthorized
  */
@@ -96,6 +132,45 @@ router.get(
   authenticate,
   validateRequest(UserIdParamSchema, "params"),
   userController.getUserById
+);
+
+/**
+ * @openapi
+ * /users/{id}/events:
+ *   get:
+ *     summary: Get all events created by a specific user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: Paginated list of events created by user
+ *       404:
+ *         description: User not found
+ */
+router.get(
+  "/:id/events",
+  authenticate,
+  validateRequest(UserIdParamSchema, "params"),
+  validateRequest(GetUserEventsQuerySchema, "query"),
+  userController.getUserEvents
 );
 
 export default router;

@@ -4,7 +4,7 @@ import { z } from "zod";
  * Schema for validating route parameters like /users/:id
  */
 export const UserIdParamSchema = z.object({
-  id: z.uuid({ message: "Invalid user ID format" }),
+  id: z.string().uuid({ message: "Invalid user ID format" }),
 });
 
 /**
@@ -26,6 +26,25 @@ export const UpdateProfileSchema = z.object({
     .optional(),
 });
 
-// Infer TypeScript types directly from Zod schemas for request Handlers
+/**
+ * Schema for validating query params on GET /users (pagination & search)
+ */
+export const GetUsersQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(10),
+  search: z.string().optional(),
+});
+
+/**
+ * for validating query params on GET /users/:id/events (pagination)
+ */
+export const GetUserEventsQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(10),
+});
+
+// Infer TypeScript types directly from Zod schemas
 export type UserIdParam = z.infer<typeof UserIdParamSchema>;
 export type UpdateProfileInput = z.infer<typeof UpdateProfileSchema>;
+export type GetUsersQueryInput = z.infer<typeof GetUsersQuerySchema>;
+export type GetUserEventsQueryInput = z.infer<typeof GetUserEventsQuerySchema>;
